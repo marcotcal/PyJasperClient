@@ -1,6 +1,7 @@
 import unittest
 from jasperclient import jasperclient
 
+
 __TEST_URL__ = 'http://your_domain:8080/jasperserver/'
 __SERVER_VERSION__ = '7.2.0'
 

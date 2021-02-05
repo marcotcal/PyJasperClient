@@ -1,10 +1,20 @@
 import requests
+import datetime
 from xml.etree import ElementTree
-import base64
-import json
 
 
 class JasperClient:
+
+    class Resource:
+
+        def __init__(self):
+            self.creation_date = None
+            self.label = None
+            self.permission_mask = None
+            self.update_date = None
+            self.uri = None
+            self.version = None
+            self.resource_type = None
 
     def __init__(self, server_url):
         self.url = server_url
@@ -23,7 +33,7 @@ class JasperClient:
     @property
     def server_version(self):
         cmd_url = self.url + 'rest_v2/serverInfo/version'
-        req = requests.get(cmd_url, cookies=self.login_cookies)
+        req = self.session.get(cmd_url)
         if req.ok:
             return req.content.decode(req.encoding)
         else:
@@ -46,12 +56,46 @@ class JasperClient:
             self.connected = False
         return self.connected
 
-    def resources(self):
-        cmd_url = self.url + 'rest_v2/resources/'
-        headers = {'content-type': 'application/json'}
-        request = requests.get(cmd_url, auth=(self.auth_user, self.auth_password), headers=headers)
+    def read_resources(self, resource_type):
+        if not self.connected:
+            return
 
-        if request.ok:
-            return request.content
-        else:
+        resources = []
+        cmd_url = self.url + 'rest_v2/resources/?recursive=true&type={}'.format(resource_type)
+        headers = {'content-type': 'application/json'}
+        r = self.session.get(url=cmd_url, headers=headers)
+        recs = ElementTree.fromstring(r.content.decode('utf-8'))
+        for rec in recs:
+            a = self.Resource()
+            for field in rec:
+                if field.tag == 'creationDate':
+                    a.creation_date = datetime.datetime.strptime(field.text, '%Y-%m-%dT%H:%M:%S')
+                elif field.tag == 'label':
+                    a.label = field.text
+                elif field.tag == 'permissionMask':
+                    a.permission_mask = field.text
+                elif field.tag == 'uri':
+                    a.uri = field.text
+                elif field.tag == 'version':
+                    a.version = field.text
+                elif field.tag == 'resourceType':
+                    a.resource_type = field.text
+
+            resources.append(a)
+
+        return resources
+
+    def execute_report(self, uri, params, output):
+        if not self.connected:
             return None
+
+        cmd_url = self.url + 'rest_v2/reports' + uri + '.pdf'
+        req = self.session.get(cmd_url, params=params)
+        if req.ok:
+            if output is not None:
+                file = open(output, "wb")
+                file.write(req.content)
+                return None
+            else:
+                return req.content
+
